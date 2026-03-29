@@ -1,5 +1,5 @@
 // client/src/App.jsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import UrlForm from "./components/UrlForm.jsx";
 import Metrics from "./components/Metrics.jsx";
 import Insights from "./components/Insights.jsx";
@@ -25,6 +25,67 @@ function LoadingSkeleton() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+const AUDIT_STEPS = [
+  "Validating URL",
+  "Scraping page",
+  "Scoring page",
+  "Generating AI insights",
+  "Validating structured output",
+  "Writing audit trace",
+];
+
+function AuditProgress({ elapsedSeconds }) {
+  const activeStep = Math.min(
+    AUDIT_STEPS.length - 1,
+    Math.floor(elapsedSeconds / 2.5)
+  );
+
+  return (
+    <div className="section-card animate-fade-up animate-fade-up-1">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h2 className="font-display text-2xl text-ink">Audit In Progress</h2>
+          <p className="text-sm font-body text-ink/55 mt-1">
+            The app is working through the deterministic scrape first, then the AI layer.
+          </p>
+        </div>
+        <div className="text-sm font-mono text-ink/45">{elapsedSeconds}s elapsed</div>
+      </div>
+
+      <div className="mt-5 grid gap-2">
+        {AUDIT_STEPS.map((step, index) => {
+          const isComplete = index < activeStep;
+          const isActive = index === activeStep;
+
+          return (
+            <div
+              key={step}
+              className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+                isActive
+                  ? "border-amber-audit/30 bg-amber-pale"
+                  : isComplete
+                  ? "border-signal-green/20 bg-signal-greenLight/20"
+                  : "border-paper-mid bg-white"
+              }`}
+            >
+              <div
+                className={`w-2.5 h-2.5 rounded-full ${
+                  isActive
+                    ? "bg-amber-audit pulse-dot"
+                    : isComplete
+                    ? "bg-signal-green"
+                    : "bg-paper-mid"
+                }`}
+              />
+              <span className={`text-sm font-body ${isActive ? "text-ink" : "text-ink/60"}`}>{step}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -124,6 +185,21 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [showTrace, setShowTrace] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (status !== "loading") {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.max(1, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [status]);
 
   async function handleAudit(url) {
     setStatus("loading");
@@ -137,10 +213,23 @@ export default function App() {
         body: JSON.stringify({ url }),
       });
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data = null;
+
+      if (rawText.trim()) {
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          throw new Error(`Server returned a non-JSON response (${res.status}).`);
+        }
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || "Audit failed. Please try again.");
+        throw new Error(data?.error || `Audit failed with status ${res.status}.`);
+      }
+
+      if (!data) {
+        throw new Error("Server returned an empty response.");
       }
 
       setResult(data);
@@ -213,7 +302,12 @@ function handleReset() {
 
         {/* Results area */}
         <div id="results">
-          {status === "loading" && <LoadingSkeleton />}
+          {status === "loading" && (
+            <div className="space-y-6">
+              <AuditProgress elapsedSeconds={elapsedSeconds} />
+              <LoadingSkeleton />
+            </div>
+          )}
           {status === "error" && <ErrorCard message={error} onReset={handleReset} />}
           {status === "success" && result && (
             <div className="space-y-6">

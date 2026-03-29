@@ -9,7 +9,7 @@ import * as cheerio from "cheerio";
 import { getOrigin, countWords, truncateWords } from "../utils/parser.js";
 
 const FETCH_TIMEOUT_MS = 12_000;
-const MAX_CONTENT_WORDS = 1000;
+const MAX_CONTENT_WORDS = 700;
 
 /**
  * CTA detection heuristics:
