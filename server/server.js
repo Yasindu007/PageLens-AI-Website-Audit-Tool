@@ -45,7 +45,12 @@ const limiter = rateLimit({
   max: 20,
   message: { error: "Too many requests. Please wait before auditing again." },
 });
-app.use("/api", limiter);
+app.use("/api/audit", (req, res, next) => {
+  if (req.method === "POST") {
+    return limiter(req, res, next);
+  }
+  return next();
+});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.get("/logs", async (_req, res, next) => {

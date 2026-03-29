@@ -52,10 +52,10 @@ const AI_RESPONSE_SCHEMA = {
  * Run AI analysis against the extracted metrics.
  * Uses Gemini only.
  *
- * @param {{ metrics: object, pageContent: string, seoScore: number, seoBreakdown: object[] }} input
+ * @param {{ metrics: object, pageContent: string, seoScore: number, seoBreakdown: object[], onProgress?: Function }} input
  * @returns {Promise<{ parsed: object, raw: string, provider: string, model?: string }>}
  */
-export async function runAiAnalysis({ metrics, pageContent, seoScore, seoBreakdown }) {
+export async function runAiAnalysis({ metrics, pageContent, seoScore, seoBreakdown, onProgress }) {
   const userPrompt = buildUserPrompt({ metrics, pageContent, seoScore, seoBreakdown });
 
   if (!process.env.GEMINI_API_KEY) {
@@ -63,19 +63,20 @@ export async function runAiAnalysis({ metrics, pageContent, seoScore, seoBreakdo
   }
 
   try {
-    return await callGemini(userPrompt);
+    return await callGemini(userPrompt, onProgress);
   } catch (err) {
     throw new Error(`Gemini analysis failed. ${err.message}`);
   }
 }
 
-async function callGemini(userPrompt) {
+async function callGemini(userPrompt, onProgress) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   let lastError;
 
   for (const modelName of GEMINI_MODELS) {
     for (let attempt = 1; attempt <= MAX_RETRIES_PER_MODEL; attempt++) {
       try {
+        onProgress?.(`Generating AI insights via ${modelName} (attempt ${attempt}/${MAX_RETRIES_PER_MODEL}).`);
         const model = genAI.getGenerativeModel({
           model: modelName,
           systemInstruction: SYSTEM_PROMPT,
@@ -99,7 +100,9 @@ async function callGemini(userPrompt) {
           break;
         }
 
-        await sleep(getRetryDelayMs(err, attempt));
+        const retryDelayMs = getRetryDelayMs(err, attempt);
+        onProgress?.(`Gemini is busy on ${modelName}. Retrying in ${Math.ceil(retryDelayMs / 1000)}s.`);
+        await sleep(retryDelayMs);
       }
     }
   }

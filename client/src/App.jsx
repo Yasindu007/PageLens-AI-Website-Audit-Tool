@@ -1,5 +1,5 @@
 // client/src/App.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import UrlForm from "./components/UrlForm.jsx";
 import Metrics from "./components/Metrics.jsx";
 import Insights from "./components/Insights.jsx";
@@ -29,20 +29,24 @@ function LoadingSkeleton() {
   );
 }
 
-const AUDIT_STEPS = [
+const DEFAULT_AUDIT_STEPS = [
   "Validating URL",
   "Scraping page",
   "Scoring page",
   "Generating AI insights",
   "Validating structured output",
   "Writing audit trace",
+  "Complete",
 ];
 
-function AuditProgress({ elapsedSeconds }) {
-  const activeStep = Math.min(
-    AUDIT_STEPS.length - 1,
-    Math.floor(elapsedSeconds / 2.5)
-  );
+function AuditProgress({ elapsedSeconds, progress }) {
+  const steps = progress?.steps?.length ? progress.steps : DEFAULT_AUDIT_STEPS;
+  const activeStep = Math.max(0, steps.indexOf(progress?.step || steps[0]));
+  const secondsSinceUpdate = progress?.updatedAt
+    ? Math.max(0, Math.floor((Date.now() - Date.parse(progress.updatedAt)) / 1000))
+    : 0;
+  const lastUpdatedLabel = secondsSinceUpdate <= 1 ? "just now" : `${secondsSinceUpdate}s ago`;
+  const isStale = secondsSinceUpdate >= 15;
 
   return (
     <div className="section-card animate-fade-up animate-fade-up-1">
@@ -50,14 +54,22 @@ function AuditProgress({ elapsedSeconds }) {
         <div>
           <h2 className="font-display text-2xl text-ink">Audit In Progress</h2>
           <p className="text-sm font-body text-ink/55 mt-1">
-            The app is working through the deterministic scrape first, then the AI layer.
+            Progress is synced to the backend audit pipeline.
           </p>
+          <p className="text-sm font-body text-ink/70 mt-3 leading-relaxed">
+            {progress?.message || "Preparing the audit job."}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-body text-ink/40">
+            <span>Still working. This is normal for larger pages and slower AI responses.</span>
+            <span>Last updated {lastUpdatedLabel}</span>
+            {isStale && <span>Waiting on the current backend step to finish.</span>}
+          </div>
         </div>
         <div className="text-sm font-mono text-ink/45">{elapsedSeconds}s elapsed</div>
       </div>
 
       <div className="mt-5 grid gap-2">
-        {AUDIT_STEPS.map((step, index) => {
+        {steps.map((step, index) => {
           const isComplete = index < activeStep;
           const isActive = index === activeStep;
 
@@ -186,6 +198,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [showTrace, setShowTrace] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [progress, setProgress] = useState(null);
+  const pollTimerRef = useRef(null);
 
   useEffect(() => {
     if (status !== "loading") {
@@ -201,13 +215,26 @@ export default function App() {
     return () => clearInterval(interval);
   }, [status]);
 
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+      }
+    };
+  }, []);
+
   async function handleAudit(url) {
     setStatus("loading");
     setResult(null);
     setError("");
+    setProgress({
+      step: "Validating URL",
+      message: "Submitting the audit job.",
+      steps: DEFAULT_AUDIT_STEPS,
+    });
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/audit`, {
+      const res = await fetch(`${API_BASE_URL}/api/audit/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
@@ -232,25 +259,66 @@ export default function App() {
         throw new Error("Server returned an empty response.");
       }
 
-      setResult(data);
-      setStatus("success");
-      setShowTrace(false);
+      if (!data.jobId) {
+        throw new Error("Server did not return an audit job id.");
+      }
 
-      // Scroll to results
-      setTimeout(() => {
-        document.getElementById("results")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
+      await pollAuditJob(data.jobId);
     } catch (err) {
       setError(err.message || "Something went wrong.");
       setStatus("error");
     }
   }
 
-function handleReset() {
+  function handleReset() {
     setStatus("idle");
     setResult(null);
     setError("");
     setShowTrace(false);
+    setProgress(null);
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }
+
+  async function pollAuditJob(jobId) {
+    while (true) {
+      const res = await fetch(`${API_BASE_URL}/api/audit/${jobId}`);
+      const rawText = await res.text();
+      const data = rawText.trim() ? JSON.parse(rawText) : null;
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Audit status failed with status ${res.status}.`);
+      }
+
+      setProgress(
+        data.progress
+          ? {
+              ...data.progress,
+              updatedAt: data.updatedAt,
+            }
+          : null
+      );
+
+      if (data.status === "completed") {
+        setResult(data.result);
+        setStatus("success");
+        setShowTrace(false);
+        setTimeout(() => {
+          document.getElementById("results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+        return;
+      }
+
+      if (data.status === "failed") {
+        throw new Error(data.error || "Audit failed.");
+      }
+
+      await new Promise((resolve) => {
+        pollTimerRef.current = setTimeout(resolve, 900);
+      });
+    }
   }
 
   return (
@@ -304,7 +372,7 @@ function handleReset() {
         <div id="results">
           {status === "loading" && (
             <div className="space-y-6">
-              <AuditProgress elapsedSeconds={elapsedSeconds} />
+              <AuditProgress elapsedSeconds={elapsedSeconds} progress={progress} />
               <LoadingSkeleton />
             </div>
           )}
