@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body { @apply bg-paper text-ink font-body antialiased; }
+}
+
+@layer components {
+  .section-card { @apply bg-white rounded-2.5xl shadow-card border border-paper-mid p-6 md:p-8; }
+  .badge-green { @apply inline-flex items-center gap-1 bg-signal-greenLight text-signal-green text-xs font-semibold px-2 py-0.5 rounded-full; }
+  .badge-red { @apply inline-flex items-center gap-1 bg-signal-redLight text-signal-red text-xs font-semibold px-2 py-0.5 rounded-full; }
+  .badge-yellow { @apply inline-flex items-center gap-1 bg-signal-yellowLight text-signal-yellow text-xs font-semibold px-2 py-0.5 rounded-full; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-up-1 { animation-delay: 0ms; }
+.animate-fade-up-2 { animation-delay: 80ms; }
+.animate-fade-up-3 { animation-delay: 160ms; }
+
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0.15; }
+  40% { opacity: 1; }
+}
+.loading-dot { animation: blink 1.4s infinite ease-in-out; }
+.loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.loading-dot:nth-child(3) { animation-delay: 0.4s; }
