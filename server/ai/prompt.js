@@ -59,11 +59,20 @@ Generate the JSON analysis now.`;
 }
 
 /**
- * Return a minimal object describing what was sent to the model for logging.
+ * Return a structured trace describing what was sent to the model.
  */
-export function buildPromptLog({ metrics, pageContent, seoScore, rawResponse }) {
+export function buildPromptLog({
+  metrics,
+  pageContent,
+  seoScore,
+  rawResponse,
+  provider,
+  model,
+}) {
   return {
     timestamp: new Date().toISOString(),
+    provider,
+    model,
     systemPrompt: SYSTEM_PROMPT,
     userPrompt: buildUserPrompt({ metrics, pageContent, seoScore }),
     inputData: {

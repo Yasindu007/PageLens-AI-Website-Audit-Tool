@@ -9,9 +9,32 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const DEFAULT_ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://localhost:4173",
+];
+const allowedOrigins = process.env.CLIENT_ORIGINS
+  ? process.env.CLIENT_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+  : DEFAULT_ALLOWED_ORIGINS;
+const allowVercelPreviews = process.env.ALLOW_VERCEL_PREVIEWS === "true";
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (allowVercelPreviews && /^https:\/\/.*\.vercel\.app$/i.test(origin)) return true;
+  return false;
+}
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors({ origin: ["http://localhost:5173", "http://localhost:4173"] }));
+app.use(cors({
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+}));
 app.use(express.json());
 
 // Rate-limit: 20 audits per 15 minutes per IP

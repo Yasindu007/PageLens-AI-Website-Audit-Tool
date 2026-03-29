@@ -16,7 +16,7 @@ const router = Router();
 /**
  * POST /api/audit
  * Body: { url: string }
- * Returns: { metrics, seoScore, insights, recommendations, provider }
+ * Returns: { metrics, seoScore, insights, recommendations, provider, model }
  */
 router.post("/audit", async (req, res, next) => {
   try {
@@ -44,9 +44,9 @@ router.post("/audit", async (req, res, next) => {
     const seoScore = calculateSeoScore(metrics);
 
     // ── Step 4: AI analysis ────────────────────────────────────────────────
-    let parsed, rawResponse, provider;
+    let parsed, rawResponse, provider, model;
     try {
-      ({ parsed, raw: rawResponse, provider } = await runAiAnalysis({
+      ({ parsed, raw: rawResponse, provider, model } = await runAiAnalysis({
         metrics,
         pageContent,
         seoScore,
@@ -63,10 +63,10 @@ router.post("/audit", async (req, res, next) => {
       pageContent,
       seoScore,
       rawResponse,
+      provider,
+      model,
     });
-    appendPromptLog({ ...logEntry, provider }).catch((err) =>
-      console.warn("[Logger] Failed to write log:", err.message)
-    );
+    await appendPromptLog(logEntry);
 
     // ── Step 6: Return structured response ────────────────────────────────
     return res.json({
@@ -76,6 +76,7 @@ router.post("/audit", async (req, res, next) => {
       insights: parsed.insights,
       recommendations: parsed.recommendations,
       provider,
+      model,
     });
   } catch (err) {
     next(err);

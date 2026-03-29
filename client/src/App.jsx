@@ -5,6 +5,8 @@ import Metrics from "./components/Metrics.jsx";
 import Insights from "./components/Insights.jsx";
 import Recommendations from "./components/Recommendations.jsx";
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+
 // ── Loading skeleton ──────────────────────────────────────────────────────────
 function LoadingSkeleton() {
   return (
@@ -128,7 +130,7 @@ export default function App() {
     setError("");
 
     try {
-      const res = await fetch("/api/audit", {
+      const res = await fetch(`${API_BASE_URL}/api/audit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
