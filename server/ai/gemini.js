@@ -5,9 +5,14 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
 
+const DEFAULT_GEMINI_MODELS = [
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-001",
+  "gemini-flash-latest",
+];
 const GEMINI_MODELS = process.env.GEMINI_MODEL
-  ? [process.env.GEMINI_MODEL]
-  : ["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-flash-latest"];
+  ? [process.env.GEMINI_MODEL, ...DEFAULT_GEMINI_MODELS.filter((model) => model !== process.env.GEMINI_MODEL)]
+  : DEFAULT_GEMINI_MODELS;
 const MAX_RETRIES_PER_MODEL = 3;
 const RETRY_DELAY_MS = 1500;
 const AI_RESPONSE_SCHEMA = {

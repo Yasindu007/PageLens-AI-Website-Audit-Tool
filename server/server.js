@@ -26,6 +26,7 @@ function isAllowedOrigin(origin) {
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+app.set("trust proxy", 1);
 app.use(cors({
   origin(origin, callback) {
     if (isAllowedOrigin(origin)) {
