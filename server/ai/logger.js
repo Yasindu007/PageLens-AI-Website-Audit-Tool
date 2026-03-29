@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOG_PATH = path.resolve(__dirname, "../../logs/promptLogs.json");
+const LOG_DIR = path.dirname(LOG_PATH);
 
 /**
  * Append a prompt log entry to the JSON log file.
@@ -17,6 +18,8 @@ const LOG_PATH = path.resolve(__dirname, "../../logs/promptLogs.json");
  */
 export async function appendPromptLog(entry) {
   let existing = [];
+
+  await fs.mkdir(LOG_DIR, { recursive: true });
 
   try {
     const raw = await fs.readFile(LOG_PATH, "utf-8");
