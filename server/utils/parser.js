@@ -57,33 +57,3 @@ export function countWords(text) {
   if (!text || !text.trim()) return 0;
   return text.trim().split(/\s+/).length;
 }
-
-/**
- * Calculate a simple SEO score (0-100) from metrics.
- * Each check is weighted; total is normalized to 100.
- */
-export function calculateSeoScore(metrics) {
-  const checks = [
-    // Title
-    { pass: !!metrics.metaTitle, weight: 15 },
-    { pass: metrics.metaTitle && metrics.metaTitle.length >= 30 && metrics.metaTitle.length <= 60, weight: 5 },
-    // Description
-    { pass: !!metrics.metaDescription, weight: 15 },
-    { pass: metrics.metaDescription && metrics.metaDescription.length >= 120 && metrics.metaDescription.length <= 160, weight: 5 },
-    // Headings
-    { pass: metrics.headings.h1 === 1, weight: 15 },
-    { pass: metrics.headings.h2 > 0, weight: 10 },
-    { pass: metrics.headings.h3 > 0, weight: 5 },
-    // Images
-    { pass: metrics.images.missingAltPercent === 0, weight: 10 },
-    // Content
-    { pass: metrics.wordCount >= 300, weight: 10 },
-    { pass: metrics.wordCount >= 700, weight: 5 },
-    // CTAs
-    { pass: metrics.ctaCount > 0, weight: 5 },
-  ];
-
-  const totalWeight = checks.reduce((sum, c) => sum + c.weight, 0);
-  const earned = checks.reduce((sum, c) => sum + (c.pass ? c.weight : 0), 0);
-  return Math.round((earned / totalWeight) * 100);
-}

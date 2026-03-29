@@ -2,15 +2,14 @@
 import React from "react";
 
 const PRIORITY_CONFIG = {
-  1: { label: "Critical", color: "#b91c1c", bg: "#fee2e2", dot: "#ef4444" },
-  2: { label: "High",     color: "#b45309", bg: "#fef3c7", dot: "#f59e0b" },
-  3: { label: "Medium",   color: "#0369a1", bg: "#e0f2fe", dot: "#38bdf8" },
-  4: { label: "Low",      color: "#1a7a4a", bg: "#d1f2e1", dot: "#34d399" },
-  5: { label: "Low",      color: "#1a7a4a", bg: "#d1f2e1", dot: "#34d399" },
+  Critical: { label: "Critical", color: "#b91c1c", bg: "#fee2e2", dot: "#ef4444" },
+  High: { label: "High", color: "#b45309", bg: "#fef3c7", dot: "#f59e0b" },
+  Medium: { label: "Medium", color: "#0369a1", bg: "#e0f2fe", dot: "#38bdf8" },
+  Low: { label: "Low", color: "#1a7a4a", bg: "#d1f2e1", dot: "#34d399" },
 };
 
 function RecommendationCard({ rec, index }) {
-  const p = PRIORITY_CONFIG[rec.priority] || PRIORITY_CONFIG[3];
+  const p = PRIORITY_CONFIG[rec.priority] || PRIORITY_CONFIG.Medium;
 
   return (
     <div className="group flex gap-4 p-5 bg-white rounded-xl border border-paper-mid hover:shadow-card transition-shadow">
@@ -20,7 +19,7 @@ function RecommendationCard({ rec, index }) {
           className="w-8 h-8 rounded-full flex items-center justify-center font-display text-sm font-bold"
           style={{ backgroundColor: p.bg, color: p.color }}
         >
-          {rec.priority}
+          {rec.priority.charAt(0)}
         </div>
         {index < 4 && (
           <div className="w-px flex-1 min-h-[20px] rounded-full" style={{ backgroundColor: p.dot + "40" }} />
@@ -60,7 +59,7 @@ export default function Recommendations({ recommendations }) {
       <div className="mb-5">
         <h2 className="font-display text-2xl text-ink">Recommendations</h2>
         <p className="text-xs font-body text-ink/40 mt-1">
-          {recommendations.length} prioritized actions, ordered by impact
+          {recommendations.length} prioritized actions, tied directly to the audited metrics
         </p>
       </div>
 

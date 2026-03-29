@@ -123,6 +123,7 @@ export default function App() {
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [showTrace, setShowTrace] = useState(false);
 
   async function handleAudit(url) {
     setStatus("loading");
@@ -144,6 +145,7 @@ export default function App() {
 
       setResult(data);
       setStatus("success");
+      setShowTrace(false);
 
       // Scroll to results
       setTimeout(() => {
@@ -155,10 +157,11 @@ export default function App() {
     }
   }
 
-  function handleReset() {
+function handleReset() {
     setStatus("idle");
     setResult(null);
     setError("");
+    setShowTrace(false);
   }
 
   return (
@@ -214,9 +217,34 @@ export default function App() {
           {status === "error" && <ErrorCard message={error} onReset={handleReset} />}
           {status === "success" && result && (
             <div className="space-y-6">
-              <Metrics metrics={result.metrics} seoScore={result.seoScore} />
-              <Insights insights={result.insights} provider={result.provider} />
+              <Metrics metrics={result.metrics} seoScore={result.seoScore} seoBreakdown={result.seoBreakdown || []} />
+              <Insights insights={result.insights} provider={result.provider} model={result.model} />
               <Recommendations recommendations={result.recommendations} />
+              <div className="section-card animate-fade-up animate-fade-up-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h2 className="font-display text-2xl text-ink">AI Trace</h2>
+                    <p className="text-xs font-body text-ink/40 mt-1">
+                      Auditable prompt log for this exact analysis
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowTrace((value) => !value)}
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-paper-mid bg-white text-sm font-body font-medium text-ink hover:shadow-card transition-shadow"
+                  >
+                    {showTrace ? "Hide AI Trace" : "View AI Trace"}
+                  </button>
+                </div>
+
+                {showTrace && result.trace && (
+                  <div className="mt-5 grid gap-4">
+                    <TraceBlock label="System Prompt" value={result.trace.systemPrompt} />
+                    <TraceBlock label="User Prompt" value={result.trace.userPrompt} />
+                    <TraceBlock label="Structured Input" value={JSON.stringify(result.trace.input, null, 2)} />
+                    <TraceBlock label="Raw AI Output" value={result.trace.rawOutput} />
+                  </div>
+                )}
+              </div>
 
               {/* Re-audit button */}
               <div className="flex justify-center pt-2 pb-8">
@@ -244,6 +272,19 @@ export default function App() {
           <span>Metrics are deterministic · Insights are AI-generated</span>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function TraceBlock({ label, value }) {
+  return (
+    <div className="rounded-xl border border-paper-mid bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b border-paper-mid bg-paper">
+        <h3 className="text-xs font-body font-semibold uppercase tracking-widest text-ink/45">{label}</h3>
+      </div>
+      <pre className="p-4 text-xs leading-relaxed font-mono text-ink/75 whitespace-pre-wrap break-words overflow-x-auto">
+        {value}
+      </pre>
     </div>
   );
 }

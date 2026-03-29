@@ -101,7 +101,7 @@ function InsightCard({ insightKey, text }) {
   );
 }
 
-export default function Insights({ insights, provider }) {
+export default function Insights({ insights, provider, model }) {
   return (
     <div className="section-card animate-fade-up animate-fade-up-2">
       <div className="flex items-start justify-between gap-4 mb-5">
@@ -113,7 +113,7 @@ export default function Insights({ insights, provider }) {
         </div>
         <span className="flex-shrink-0 inline-flex items-center gap-1.5 bg-ink text-paper text-[10px] font-mono font-medium px-2.5 py-1 rounded-full">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-light inline-block" />
-          {provider === "gemini" ? "Gemini 1.5 Flash" : provider === "openai" ? "GPT-4o Mini" : provider}
+          {provider === "gemini" ? model || "Gemini" : provider === "openai" ? model || "OpenAI" : provider}
         </span>
       </div>
 

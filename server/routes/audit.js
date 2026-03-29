@@ -8,8 +8,9 @@ import { Router } from "express";
 import { scrapePage } from "../scraper/scraper.js";
 import { runAiAnalysis } from "../ai/gemini.js";
 import { buildPromptLog } from "../ai/prompt.js";
-import { appendPromptLog } from "../ai/logger.js";
-import { validateUrl, calculateSeoScore } from "../utils/parser.js";
+import { appendPromptLog, readPromptLogs } from "../ai/logger.js";
+import { validateUrl } from "../utils/parser.js";
+import { calculateSeoScore } from "../utils/score.js";
 
 const router = Router();
 
@@ -41,7 +42,7 @@ router.post("/audit", async (req, res, next) => {
     console.log(`[Audit] Scraped: ${metrics.wordCount} words, ${metrics.images.total} images`);
 
     // ── Step 3: Calculate SEO score (deterministic) ────────────────────────
-    const seoScore = calculateSeoScore(metrics);
+    const { score: seoScore, breakdown: seoBreakdown } = calculateSeoScore(metrics);
 
     // ── Step 4: AI analysis ────────────────────────────────────────────────
     let parsed, rawResponse, provider, model;
@@ -50,6 +51,7 @@ router.post("/audit", async (req, res, next) => {
         metrics,
         pageContent,
         seoScore,
+        seoBreakdown,
       }));
     } catch (err) {
       return res.status(502).json({ error: `AI analysis failed: ${err.message}` });
@@ -62,9 +64,8 @@ router.post("/audit", async (req, res, next) => {
       metrics,
       pageContent,
       seoScore,
+      seoBreakdown,
       rawResponse,
-      provider,
-      model,
     });
     await appendPromptLog(logEntry);
 
@@ -73,10 +74,12 @@ router.post("/audit", async (req, res, next) => {
       url,
       metrics,
       seoScore,
+      seoBreakdown,
       insights: parsed.insights,
       recommendations: parsed.recommendations,
       provider,
       model,
+      trace: logEntry,
     });
   } catch (err) {
     next(err);
@@ -96,6 +99,15 @@ router.get("/health", (_req, res) => {
       ? "openai"
       : "none",
   });
+});
+
+router.get("/logs", async (_req, res, next) => {
+  try {
+    const logs = await readPromptLogs();
+    res.json(logs);
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

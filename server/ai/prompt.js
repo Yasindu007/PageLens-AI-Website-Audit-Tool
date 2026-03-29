@@ -1,21 +1,27 @@
 // server/ai/prompt.js
 // Prompt construction and prompt logging for the AI analysis layer.
 
-export const SYSTEM_PROMPT = `You are a senior SEO and UX analyst for marketing websites.
-
-Analyze the provided webpage metrics and content excerpt.
+export const SYSTEM_PROMPT = `You are a senior SEO and UX analyst at a digital agency.
 
 Rules:
-- Ground every insight in the supplied metrics and content only.
-- Reference explicit figures when relevant.
-- Avoid generic advice.
-- Be concise.
-- Keep each insight to 1-2 sentences and under 60 words.
-- Keep recommendation fields brief and concrete.
-- Do not invent data.
-- Return strict JSON only.
+- Only use provided data
+- Always reference metrics (numbers)
+- Be specific and actionable
+- Output STRICT JSON
+- No extra text`;
 
-Return exactly this shape:
+/**
+ * Build the user prompt from structured data.
+ * @param {{ metrics: object, pageContent: string, seoScore: number }} input
+ * @returns {string}
+ */
+export function buildUserPrompt({ metrics, pageContent, seoScore, seoBreakdown }) {
+  const metricsJson = JSON.stringify(metrics, null, 2);
+  const breakdownJson = JSON.stringify(seoBreakdown, null, 2);
+
+  return `Analyze this marketing webpage using only the deterministic inputs below.
+
+Return exactly this JSON shape:
 {
   "insights": {
     "seo": "string",
@@ -26,7 +32,7 @@ Return exactly this shape:
   },
   "recommendations": [
     {
-      "priority": 1,
+      "priority": "Critical",
       "issue": "string",
       "reason": "string",
       "action": "string"
@@ -34,23 +40,25 @@ Return exactly this shape:
   ]
 }
 
-Produce exactly 4 recommendations ordered by priority, where 1 is highest impact.`;
+Recommendation rules:
+- Produce exactly 4 recommendations
+- Allowed priority values: Critical, High, Medium, Low
+- Tie every recommendation to the provided metrics or content
+- Do not invent data
 
-/**
- * Build the user prompt from structured data.
- * @param {{ metrics: object, pageContent: string, seoScore: number }} input
- * @returns {string}
- */
-export function buildUserPrompt({ metrics, pageContent, seoScore }) {
-  const metricsJson = JSON.stringify(metrics, null, 2);
-
-  return `WEBPAGE METRICS (deterministic):
+WEBPAGE METRICS:
 
 \`\`\`json
 ${metricsJson}
 \`\`\`
 
 SEO Score: ${seoScore}/100
+
+SEO Score Breakdown:
+
+\`\`\`json
+${breakdownJson}
+\`\`\`
 
 PAGE CONTENT EXCERPT:
 ${pageContent}
@@ -65,22 +73,19 @@ export function buildPromptLog({
   metrics,
   pageContent,
   seoScore,
+  seoBreakdown,
   rawResponse,
-  provider,
-  model,
 }) {
   return {
     timestamp: new Date().toISOString(),
-    provider,
-    model,
     systemPrompt: SYSTEM_PROMPT,
-    userPrompt: buildUserPrompt({ metrics, pageContent, seoScore }),
-    inputData: {
+    userPrompt: buildUserPrompt({ metrics, pageContent, seoScore, seoBreakdown }),
+    input: {
       metrics,
       seoScore,
-      pageContentWordCount: pageContent.trim() ? pageContent.trim().split(/\s+/).length : 0,
-      pageContentSnippet: pageContent.substring(0, 200) + "...",
+      seoBreakdown,
+      content: pageContent,
     },
-    rawAiResponse: rawResponse,
+    rawOutput: rawResponse,
   };
 }

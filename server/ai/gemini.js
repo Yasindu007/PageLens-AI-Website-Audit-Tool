@@ -4,6 +4,7 @@
 
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
+import { validateAiResponse } from "../utils/validateAI.js";
 
 const DEFAULT_GEMINI_MODELS = [
   "gemini-2.0-flash",
@@ -13,8 +14,9 @@ const DEFAULT_GEMINI_MODELS = [
 const GEMINI_MODELS = process.env.GEMINI_MODEL
   ? [process.env.GEMINI_MODEL, ...DEFAULT_GEMINI_MODELS.filter((model) => model !== process.env.GEMINI_MODEL)]
   : DEFAULT_GEMINI_MODELS;
-const MAX_RETRIES_PER_MODEL = 3;
-const RETRY_DELAY_MS = 1500;
+const MAX_RETRIES_PER_MODEL = 4;
+const BASE_RETRY_DELAY_MS = 2000;
+const MAX_RETRY_DELAY_MS = 20000;
 const AI_RESPONSE_SCHEMA = {
   type: SchemaType.OBJECT,
   required: ["insights", "recommendations"],
@@ -36,7 +38,7 @@ const AI_RESPONSE_SCHEMA = {
         type: SchemaType.OBJECT,
         required: ["priority", "issue", "reason", "action"],
         properties: {
-          priority: { type: SchemaType.INTEGER },
+          priority: { type: SchemaType.STRING, enum: ["Critical", "High", "Medium", "Low"] },
           issue: { type: SchemaType.STRING },
           reason: { type: SchemaType.STRING },
           action: { type: SchemaType.STRING },
@@ -50,11 +52,11 @@ const AI_RESPONSE_SCHEMA = {
  * Run AI analysis against the extracted metrics.
  * Uses Gemini only.
  *
- * @param {{ metrics: object, pageContent: string, seoScore: number }} input
+ * @param {{ metrics: object, pageContent: string, seoScore: number, seoBreakdown: object[] }} input
  * @returns {Promise<{ parsed: object, raw: string, provider: string, model?: string }>}
  */
-export async function runAiAnalysis({ metrics, pageContent, seoScore }) {
-  const userPrompt = buildUserPrompt({ metrics, pageContent, seoScore });
+export async function runAiAnalysis({ metrics, pageContent, seoScore, seoBreakdown }) {
+  const userPrompt = buildUserPrompt({ metrics, pageContent, seoScore, seoBreakdown });
 
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured.");
@@ -87,11 +89,7 @@ async function callGemini(userPrompt) {
           },
         });
 
-        const result = await model.generateContent(userPrompt);
-        const raw = result.response.text();
-        const parsed = safeParseJson(raw);
-
-        validateAiOutput(parsed);
+        const { parsed, raw } = await generateValidatedContent(model, userPrompt);
 
         return { parsed, raw, provider: "gemini", model: modelName };
       } catch (err) {
@@ -101,14 +99,12 @@ async function callGemini(userPrompt) {
           break;
         }
 
-        await sleep(RETRY_DELAY_MS * attempt);
+        await sleep(getRetryDelayMs(err, attempt));
       }
     }
   }
 
-  throw new Error(
-    `Gemini failed for models ${GEMINI_MODELS.join(", ")}. ${lastError?.message || "Unknown error."}`
-  );
+  throw formatGeminiError(lastError);
 }
 
 function isRetryableGeminiError(err) {
@@ -117,48 +113,100 @@ function isRetryableGeminiError(err) {
     /high demand|temporar|unavailable|overloaded|rate limit/i.test(message);
 }
 
+function getRetryDelayMs(err, attempt) {
+  const hintedDelayMs = extractRetryDelayMs(err);
+  if (hintedDelayMs) {
+    return Math.min(hintedDelayMs, MAX_RETRY_DELAY_MS);
+  }
+
+  const exponentialDelay = BASE_RETRY_DELAY_MS * 2 ** (attempt - 1);
+  return Math.min(exponentialDelay, MAX_RETRY_DELAY_MS);
+}
+
+function extractRetryDelayMs(err) {
+  const message = String(err?.message || "");
+  const jsonMatches = [...message.matchAll(/"retryDelay"\s*:\s*"([^"]+)"/g)];
+  for (const match of jsonMatches) {
+    const parsed = parseDurationToMs(match[1]);
+    if (parsed) return parsed;
+  }
+
+  const textMatch = message.match(/Please retry in\s+([\d.]+)(ms|s|m|h)\b/i);
+  if (textMatch) {
+    const parsed = parseDurationToMs(`${textMatch[1]}${textMatch[2]}`);
+    if (parsed) return parsed;
+  }
+
+  return null;
+}
+
+function parseDurationToMs(durationText) {
+  if (!durationText) return null;
+
+  const normalized = durationText.trim().toLowerCase();
+  const match = normalized.match(/^([\d.]+)\s*(ms|s|m|h)$/);
+  if (!match) return null;
+
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  const unit = match[2];
+  if (unit === "ms") return Math.round(value);
+  if (unit === "s") return Math.round(value * 1000);
+  if (unit === "m") return Math.round(value * 60_000);
+  if (unit === "h") return Math.round(value * 3_600_000);
+
+  return null;
+}
+
+function formatGeminiError(err) {
+  const message = String(err?.message || "Unknown error.");
+
+  if (isTemporaryCapacityError(message)) {
+    return new Error("Gemini is under high demand right now. Please retry in 1-2 minutes.");
+  }
+
+  if (isQuotaError(message)) {
+    return new Error("Gemini quota is currently exhausted for this project. Please try again later or use a key with available quota.");
+  }
+
+  return new Error(
+    `Gemini failed for models ${GEMINI_MODELS.join(", ")}. ${message}`
+  );
+}
+
+function isTemporaryCapacityError(message) {
+  return /\b(503|504)\b/.test(message) ||
+    /high demand|temporar(?:ily)? unavailable|service unavailable|overloaded/i.test(message);
+}
+
+function isQuotaError(message) {
+  return /\b429\b/.test(message) ||
+    /quota exceeded|rate limit|billing details|free_tier/i.test(message);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function safeParseJson(text) {
-  if (!text) throw new Error("AI returned empty response.");
+async function generateValidatedContent(model, userPrompt) {
+  let lastValidationError;
 
-  const cleaned = text
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const result = await model.generateContent(userPrompt);
+    const raw = result.response.text();
 
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        return JSON.parse(match[0]);
-      } catch {
-        // fall through
+    try {
+      const parsed = validateAiResponse(raw);
+      return { parsed, raw };
+    } catch (err) {
+      lastValidationError = err;
+
+      if (attempt === 2) {
+        break;
       }
     }
-    throw new Error(`AI response was not valid JSON. Raw: ${cleaned.substring(0, 200)}`);
-  }
-}
-
-function validateAiOutput(parsed) {
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("AI output is not a JSON object.");
-  }
-  if (!parsed.insights || typeof parsed.insights !== "object") {
-    throw new Error("AI output missing 'insights' object.");
-  }
-  if (!Array.isArray(parsed.recommendations)) {
-    throw new Error("AI output missing 'recommendations' array.");
   }
 
-  const requiredInsights = ["seo", "messaging", "cta", "contentDepth", "ux"];
-  for (const key of requiredInsights) {
-    if (typeof parsed.insights[key] !== "string") {
-      throw new Error(`AI output missing insights.${key}`);
-    }
-  }
+  throw new Error(`AI returned invalid structured output after 2 attempts. ${lastValidationError?.message || ""}`.trim());
 }

@@ -1,45 +1,21 @@
-// client/src/components/Metrics.jsx
 import React from "react";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function ScoreRing({ score }) {
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius; // ≈ 339
-  const offset = circumference - (score / 100) * circumference;
-
+function ScoreBadge({ score }) {
   const color =
-    score >= 75 ? "#1a7a4a" : score >= 50 ? "#b45309" : "#b91c1c";
-
+    score >= 85 ? "#1a7a4a" : score >= 70 ? "#b45309" : "#b91c1c";
   const label =
-    score >= 75 ? "Good" : score >= 50 ? "Needs Work" : "Poor";
+    score >= 85 ? "Strong" : score >= 70 ? "Watchlist" : "At Risk";
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="relative w-32 h-32">
-        <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-          <circle
-            cx="60" cy="60" r={radius}
-            fill="none"
-            stroke="#e8e0d0"
-            strokeWidth="10"
-          />
-          <circle
-            cx="60" cy="60" r={radius}
-            fill="none"
-            stroke={color}
-            strokeWidth="10"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            className="score-ring-animate"
-            style={{ "--target-offset": offset }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-display text-3xl text-ink leading-none">{score}</span>
-          <span className="text-[10px] font-body font-medium text-ink/50 uppercase tracking-widest mt-0.5">/ 100</span>
-        </div>
+      <div
+        className="w-32 h-32 rounded-[2rem] border-4 flex flex-col items-center justify-center shadow-card"
+        style={{ borderColor: color, color }}
+      >
+        <span className="font-display text-4xl leading-none">{score}</span>
+        <span className="text-[10px] font-body font-semibold uppercase tracking-[0.22em] text-ink/50 mt-1">
+          SEO Score
+        </span>
       </div>
       <span
         className="text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full"
@@ -75,14 +51,13 @@ function MetricCard({ icon, label, value, sub, status }) {
   );
 }
 
-function MetaRow({ label, value, status }) {
+function MetaRow({ label, value }) {
   const isEmpty = !value;
   const len = value ? value.length : 0;
-
   const lenStatus =
     label === "Meta Title"
-      ? len >= 30 && len <= 60 ? "good" : len > 0 ? "warn" : "bad"
-      : len >= 120 && len <= 160 ? "good" : len > 0 ? "warn" : "bad";
+      ? len >= 30 && len <= 60 ? "badge-green" : len > 0 ? "badge-yellow" : "badge-red"
+      : len >= 120 && len <= 160 ? "badge-green" : len > 0 ? "badge-yellow" : "badge-red";
 
   return (
     <div className="flex flex-col gap-1.5 py-3 border-b border-paper-mid last:border-0">
@@ -91,9 +66,7 @@ function MetaRow({ label, value, status }) {
         {isEmpty ? (
           <span className="badge-red">Missing</span>
         ) : (
-          <span className={lenStatus === "good" ? "badge-green" : "badge-yellow"}>
-            {len} chars
-          </span>
+          <span className={lenStatus}>{len} chars</span>
         )}
       </div>
       {isEmpty ? (
@@ -105,99 +78,72 @@ function MetaRow({ label, value, status }) {
   );
 }
 
-// ── Main Component ─────────────────────────────────────────────────────────────
+function BreakdownSection({ breakdown }) {
+  return (
+    <div className="bg-white rounded-xl border border-paper-mid p-4">
+      <div className="flex items-center justify-between gap-4 mb-3">
+        <h3 className="text-xs font-body font-semibold uppercase tracking-widest text-ink/40">
+          Score Breakdown
+        </h3>
+        <span className="text-[11px] font-body text-ink/35">100 base score minus penalties</span>
+      </div>
 
-export default function Metrics({ metrics, seoScore }) {
+      {breakdown.length === 0 ? (
+        <p className="text-sm font-body text-ink/60">No penalties were applied to the SEO score.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {breakdown.map((item, index) => (
+            <div
+              key={`${item.issue}-${index}`}
+              className="flex items-center justify-between gap-3 rounded-lg bg-signal-redLight/18 border border-signal-red/10 px-3 py-2"
+            >
+              <span className="text-sm font-body text-ink">{item.issue}</span>
+              <span className="text-sm font-semibold text-signal-red">{item.penalty}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Metrics({ metrics, seoScore, seoBreakdown }) {
   const { wordCount, headings, links, images, ctaCount, metaTitle, metaDescription, url } = metrics;
-
-  // Heading status
   const h1Status = headings.h1 === 1 ? "good" : headings.h1 === 0 ? "bad" : "warn";
-  // Alt text
-  const altStatus = images.missingAltPercent === 0 ? "good" : images.missingAltPercent < 50 ? "warn" : "bad";
-  // Word count
+  const altStatus = images.missingAltPercent === 0 ? "good" : images.missingAltPercent <= 50 ? "warn" : "bad";
+  const ctaStatus = ctaCount > 50 ? "warn" : ctaCount >= 1 ? "good" : "bad";
   const wordStatus = wordCount >= 700 ? "good" : wordCount >= 300 ? "warn" : "bad";
-  // CTA
-  const ctaStatus = ctaCount >= 1 ? "good" : "bad";
 
   return (
     <div className="section-card animate-fade-up animate-fade-up-1">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-6">
         <div>
           <h2 className="font-display text-2xl text-ink">Page Metrics</h2>
-          <p className="text-xs font-body text-ink/40 mt-1 font-mono truncate max-w-xs">{url}</p>
+          <p className="text-xs font-body text-ink/40 mt-1 font-mono break-all">{url}</p>
         </div>
-        <ScoreRing score={seoScore} />
+        <ScoreBadge score={seoScore} />
       </div>
 
-      {/* Meta tags */}
-      <div className="bg-paper rounded-xl p-4 mb-6">
-        <h3 className="text-xs font-body font-semibold uppercase tracking-widest text-ink/40 mb-3">Meta Tags</h3>
-        <MetaRow label="Meta Title" value={metaTitle} />
-        <MetaRow label="Meta Description" value={metaDescription} />
+      <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-4 mb-6">
+        <div className="bg-paper rounded-xl p-4">
+          <h3 className="text-xs font-body font-semibold uppercase tracking-widest text-ink/40 mb-3">Meta Tags</h3>
+          <MetaRow label="Meta Title" value={metaTitle} />
+          <MetaRow label="Meta Description" value={metaDescription} />
+        </div>
+        <BreakdownSection breakdown={seoBreakdown} />
       </div>
 
-      {/* Metric cards grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        <MetricCard
-          icon="📝"
-          label="Word Count"
-          value={wordCount.toLocaleString()}
-          sub={wordCount < 300 ? "Too thin" : wordCount < 700 ? "Moderate" : "Substantial"}
-          status={wordStatus}
-        />
-        <MetricCard
-          icon="🏷"
-          label="H1 Tags"
-          value={headings.h1}
-          sub={headings.h1 === 1 ? "Ideal" : headings.h1 === 0 ? "Missing!" : "Too many"}
-          status={h1Status}
-        />
-        <MetricCard
-          icon="📑"
-          label="H2 / H3"
-          value={`${headings.h2} / ${headings.h3}`}
-          sub="Subheadings"
-          status={headings.h2 > 0 ? "good" : "warn"}
-        />
-        <MetricCard
-          icon="🎯"
-          label="CTAs"
-          value={ctaCount}
-          sub={ctaCount === 0 ? "None detected" : "Detected"}
-          status={ctaStatus}
-        />
-        <MetricCard
-          icon="🔗"
-          label="Internal Links"
-          value={links.internal}
-          sub="Same domain"
-          status="neutral"
-        />
-        <MetricCard
-          icon="↗"
-          label="External Links"
-          value={links.external}
-          sub="Other domains"
-          status="neutral"
-        />
-        <MetricCard
-          icon="🖼"
-          label="Images"
-          value={images.total}
-          sub={`${images.missingAlt} missing alt`}
-          status={altStatus}
-        />
-        <MetricCard
-          icon="♿"
-          label="Missing Alt"
-          value={`${images.missingAltPercent}%`}
-          sub={images.missingAltPercent === 0 ? "All covered" : `${images.missingAlt} of ${images.total}`}
-          status={altStatus}
-        />
+        <MetricCard icon="Words" label="Word Count" value={wordCount.toLocaleString()} sub="Visible page copy" status={wordStatus} />
+        <MetricCard icon="H1" label="H1 Tags" value={headings.h1} sub={headings.h1 === 1 ? "Ideal" : "Needs review"} status={h1Status} />
+        <MetricCard icon="H2/H3" label="Headings" value={`${headings.h2} / ${headings.h3}`} sub="Hierarchy depth" status={headings.h2 > 0 ? "good" : "warn"} />
+        <MetricCard icon="CTA" label="CTAs" value={ctaCount} sub={ctaCount > 50 ? "Crowded" : "Detected"} status={ctaStatus} />
+        <MetricCard icon="INT" label="Internal Links" value={links.internal} sub="Same domain" status="neutral" />
+        <MetricCard icon="EXT" label="External Links" value={links.external} sub="Other domains" status="neutral" />
+        <MetricCard icon="IMG" label="Images" value={images.total} sub={`${images.missingAlt} missing alt`} status={altStatus} />
+        <MetricCard icon="ALT" label="Missing Alt" value={`${images.missingAltPercent}%`} sub="Accessibility gap" status={altStatus} />
       </div>
 
-      {/* CTA examples if any */}
       {metrics.ctaElements && metrics.ctaElements.length > 0 && (
         <div className="mt-5">
           <h3 className="text-xs font-body font-semibold uppercase tracking-widest text-ink/40 mb-2">

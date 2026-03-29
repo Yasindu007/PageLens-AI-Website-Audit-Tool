@@ -38,3 +38,13 @@ export async function appendPromptLog(entry) {
 
   await fs.writeFile(LOG_PATH, JSON.stringify(existing, null, 2), "utf-8");
 }
+
+export async function readPromptLogs() {
+  try {
+    const raw = await fs.readFile(LOG_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}

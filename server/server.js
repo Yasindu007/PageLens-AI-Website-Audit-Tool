@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import auditRouter from "./routes/audit.js";
+import { readPromptLogs } from "./ai/logger.js";
 
 dotenv.config();
 
@@ -47,6 +48,14 @@ const limiter = rateLimit({
 app.use("/api", limiter);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+app.get("/logs", async (_req, res, next) => {
+  try {
+    const logs = await readPromptLogs();
+    res.json(logs);
+  } catch (err) {
+    next(err);
+  }
+});
 app.use("/api", auditRouter);
 
 // 404 catch-all
