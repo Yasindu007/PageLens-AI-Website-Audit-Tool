@@ -2,6 +2,10 @@
 
 PageLens is an internal-style website audit tool for marketing teams. It combines deterministic scraping with structured Gemini analysis so every recommendation can be traced back to measurable page inputs.
 
+Repository: `https://github.com/Yasindu007/PageLens-AI-Website-Audit-Tool`
+
+Scope: this tool analyzes one page at a time. It does not perform multi-page crawling.
+
 ## Interface
 
 - Deployed web app: `https://page-lens-ai-website-audit-tool.vercel.app/`
@@ -97,6 +101,11 @@ This reduces hallucination risk and makes the output easier to validate and debu
 ## Traceability And Logging
 
 Every completed audit appends a trace entry to [`logs/promptLogs.json`](/e:/PageLens-AI-Website-Audit-Tool/logs/promptLogs.json).
+
+Prompt traces are available in two places:
+
+- file-based logs: [`logs/promptLogs.json`](/e:/PageLens-AI-Website-Audit-Tool/logs/promptLogs.json)
+- API endpoint: `GET /logs`
 
 Each log entry stores:
 
