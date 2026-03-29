@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
     return res.json(result);
   } catch (err) {
     logger.error(`Audit failed for ${normalizedUrl}: ${err.message}`);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Audit failed. Please check the URL and try again.' });
   }
 });
 
